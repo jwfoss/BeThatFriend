@@ -26,19 +26,37 @@ export default function CirclePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setAnnounce('Not authenticated'); setTimeout(() => setAnnounce(''), 3000); setSubmitting(false); return }
       const email = invites[idx].email.trim().toLowerCase()
-      if (!email) { setAnnounce('Enter a valid email address'); setTimeout(() => setAnnounce(''), 3000); setSubmitting(false); return }
-      await (supabase as any).from('invites').insert({
-        inviter_id: user.id,
-        contact_name: invites[idx].name,
-        contact_email: email,
-        status: 'sent',
+
+      const { data: inserted, error: insertError } = await (supabase as any)
+        .from('invites')
+        .insert({
+          inviter_id: user.id,
+          contact_name: invites[idx].name,
+          contact_email: email,
+          status: 'queued',
+        })
+        .select('id')
+        .single()
+
+      if (insertError || !inserted) throw insertError || new Error('Failed to create invite')
+
+      const res = await fetch('/api/invites/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId: inserted.id }),
       })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to send invite')
+      }
+
       setSentInvites(sentInvites.map((s, i) => i === idx ? true : s))
-      setAnnounce(`${invites[idx].name || 'Contact'} added`)
+      setAnnounce(`Invite sent to ${invites[idx].name || email}`)
       setTimeout(() => setAnnounce(''), 3000)
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      setAnnounce('Failed to add invite')
+      setAnnounce(e.message || 'Failed to send invite')
       setTimeout(() => setAnnounce(''), 3000)
     } finally {
       setSubmitting(false)
@@ -46,7 +64,6 @@ export default function CirclePage() {
   }
 
   const handleAddFriend = () => {
-    if (invites.length >= 3) return
     setInvites([...invites, { name: '', email: '' }])
     setSentInvites([...sentInvites, false])
   }
@@ -129,9 +146,8 @@ export default function CirclePage() {
             <div className="pt-2">
               <button
                 type="button"
-                className={`text-sm ${invites.length >= 3 ? 'text-gray-400 cursor-not-allowed' : 'text-indigo-600 hover:underline'}`}
-                onClick={() => { if (invites.length < 3) handleAddFriend() }}
-                disabled={invites.length >= 3}
+                className="text-sm text-indigo-600 hover:underline"
+                onClick={handleAddFriend}
               >
                 + Add another friend
               </button>
