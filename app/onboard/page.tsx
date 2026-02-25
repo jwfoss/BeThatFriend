@@ -92,7 +92,7 @@ export default function OnboardPage() {
         sessionStorage.removeItem('pendingInviteCode')
         router.push(`/join/${pendingInviteCode}`)
       } else {
-        router.push('/invite')
+        router.push('/circle')
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
