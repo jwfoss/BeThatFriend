@@ -13,11 +13,11 @@ interface ImportantDate {
 }
 
 interface ConnectionDate {
-  id: string
-  label: string
+  connection_user_id: string
+  connection_name: string
+  date_label: string
   date_month: number
   date_day: number
-  owner_name: string
 }
 
 interface Connection {
@@ -234,9 +234,9 @@ export default function DashboardPage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {sortedConnectionDates.map(date => (
-                <div key={date.id} className="text-gray-700 dark:text-gray-300">
-                  {formatDate(date.date_month, date.date_day)} | {date.label} | {date.owner_name}
+              {sortedConnectionDates.map((date, i) => (
+                <div key={`${date.connection_user_id}-${i}`} className="text-gray-700 dark:text-gray-300">
+                  {formatDate(date.date_month, date.date_day)} | {date.date_label} | {date.connection_name}
                 </div>
               ))}
             </div>
