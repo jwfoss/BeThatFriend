@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Resend } from 'resend'
 import { createServiceClient } from '@/lib/supabase/server'
 
-// TODO: Implement Email Digest service
-// - Daily/weekly email reminders for upcoming dates
-// - Use SendGrid, Resend, or AWS SES
-// - Create email templates with HTML formatting
-// - Handle unsubscribe links per CAN-SPAM compliance
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 interface Reminder {
   recipient_email: string
@@ -37,19 +34,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'No reminders for today', sent: 0 })
     }
 
-    // TODO: Implement email sending
-    // For now, just return the reminders that would be sent
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bethatfriend.app'
+    let sent = 0
+    let failed = 0
+
+    for (const reminder of reminders) {
+      const { error: emailError } = await resend.emails.send({
+        from: 'BeThatFriend <hello@bethatfriend.app>',
+        to: reminder.recipient_email,
+        subject: `Don't forget — ${reminder.friend_name}'s ${reminder.date_label} is today!`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>Don't forget!</h2>
+            <p>Hey ${reminder.recipient_name},</p>
+            <p>Just a friendly reminder that today is <strong>${reminder.friend_name}</strong>'s <strong>${reminder.date_label}</strong>!</p>
+            <p>Make sure to reach out and make their day special.</p>
+            <p style="text-align: center; margin: 32px 0;">
+              <a href="${appUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                Open Be That Friend
+              </a>
+            </p>
+          </div>
+        `,
+      })
+
+      if (emailError) {
+        console.error(`Failed to send reminder to ${reminder.recipient_email}:`, emailError)
+        failed++
+      } else {
+        sent++
+      }
+    }
+
     return NextResponse.json({
-      message: 'Daily reminders processed (email sending not yet implemented)',
+      message: 'Daily reminders processed',
       total: reminders.length,
-      sent: 0,
-      pending: reminders.length,
-      reminders: reminders.map((r) => ({
-        recipient_email: r.recipient_email,
-        recipient_name: r.recipient_name,
-        friend_name: r.friend_name,
-        date_label: r.date_label,
-      })),
+      sent,
+      failed,
     })
   } catch (error: any) {
     console.error('Cron job error:', error)

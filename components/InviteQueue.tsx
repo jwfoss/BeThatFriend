@@ -16,8 +16,9 @@ interface InviteQueueProps {
   onMarkSent: (inviteId: string) => void
 }
 
-export default function InviteQueue({ invites, inviteCode, onMarkSent }: InviteQueueProps) {
+export default function InviteQueue({ invites, inviteCode: _inviteCode, onMarkSent }: InviteQueueProps) {
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [errorId, setErrorId] = useState<string | null>(null)
 
   const queuedInvites = invites.filter((i) => i.status === 'queued')
   const sentInvites = invites.filter((i) => i.status === 'sent')
@@ -26,23 +27,25 @@ export default function InviteQueue({ invites, inviteCode, onMarkSent }: InviteQ
     if (!invite.contact_email) return
 
     setSendingId(invite.id)
+    setErrorId(null)
 
-    const appUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    const joinUrl = `${appUrl}/join/${inviteCode}`
-    const subject = `${invite.contact_name}, join my Be That Friend circle!`
-    const body = `Hey ${invite.contact_name}!\n\nI'm using Be That Friend to remember important dates. Join my circle and never miss a birthday: ${joinUrl}`
+    try {
+      const res = await fetch('/api/invites/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId: invite.id }),
+      })
 
-    // Generate mailto link
-    const mailtoLink = `mailto:${invite.contact_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+      if (!res.ok) {
+        throw new Error('Failed to send invite')
+      }
 
-    // Open native email client
-    window.location.href = mailtoLink
-
-    // Mark as sent after a short delay (user may cancel)
-    setTimeout(() => {
       onMarkSent(invite.id)
+    } catch {
+      setErrorId(invite.id)
+    } finally {
       setSendingId(null)
-    }, 1000)
+    }
   }
 
   if (queuedInvites.length === 0 && sentInvites.length === 0) {
@@ -77,13 +80,18 @@ export default function InviteQueue({ invites, inviteCode, onMarkSent }: InviteQ
                   </p>
                 </div>
                 {index === 0 ? (
-                  <Button
-                    size="sm"
-                    onClick={() => handleSendNext(invite)}
-                    loading={sendingId === invite.id}
-                  >
-                    Send Invite
-                  </Button>
+                  <div className="flex flex-col items-end gap-1">
+                    <Button
+                      size="sm"
+                      onClick={() => handleSendNext(invite)}
+                      loading={sendingId === invite.id}
+                    >
+                      Send Invite
+                    </Button>
+                    {errorId === invite.id && (
+                      <p className="text-xs text-red-500">Failed to send. Try again.</p>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-sm text-gray-400 dark:text-gray-500">
                     #{index + 1} in queue
